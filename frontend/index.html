@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DeepFake Detection Dashboard — Celeb-DF VGG16</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @keyframes pulse-subtle {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+    .analyzing { animation: pulse-subtle 1.5s infinite; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans">
+
+  <!-- Header -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+          <i class="fa-solid fa-shield-halved text-white text-xl"></i>
+        </div>
+        <div>
+          <h1 class="text-xl font-bold text-white tracking-wide">DeepFake Guardian</h1>
+          <p class="text-xs text-slate-400">Celeb-DF-v1 &bull; VGG16 Transfer Learning</p>
+        </div>
+      </div>
+      <div class="flex items-center space-x-3 text-sm">
+        <span id="backend-status-pill" class="px-3 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+          Checking API...
+        </span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="flex-1 max-w-6xl mx-auto w-full px-6 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+
+    <!-- Upload & Video Player Column -->
+    <div class="lg:col-span-6 space-y-6">
+      <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 shadow-xl backdrop-blur">
+        <h2 class="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+          <i class="fa-solid fa-cloud-arrow-up text-cyan-400"></i> Video Input
+        </h2>
+        <p class="text-sm text-slate-400 mb-4">Upload an MP4, AVI, or MOV video to inspect for facial manipulation.</p>
+
+        <!-- Dropzone -->
+        <div id="dropzone" class="border-2 border-dashed border-slate-700 hover:border-cyan-500/60 rounded-xl p-8 text-center cursor-pointer transition-all duration-200 bg-slate-950/40">
+          <input type="file" id="file-input" accept="video/mp4,video/avi,video/quicktime,video/x-matroska" class="hidden">
+          <div class="space-y-3">
+            <div class="w-14 h-14 mx-auto rounded-full bg-slate-800 flex items-center justify-center text-cyan-400 text-2xl">
+              <i class="fa-solid fa-file-video"></i>
+            </div>
+            <div>
+              <p class="text-sm font-medium text-slate-200">Drag & drop your video here, or <span class="text-cyan-400 underline">browse</span></p>
+              <p class="text-xs text-slate-500 mt-1">Supports MP4, MOV, AVI up to 200MB</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Video Preview -->
+        <div id="preview-container" class="mt-4 hidden space-y-3">
+          <video id="video-preview" controls class="w-full rounded-xl bg-black max-h-64 object-contain border border-slate-800"></video>
+          <div class="flex items-center justify-between text-xs text-slate-400 px-1">
+            <span id="video-name" class="truncate max-w-[260px] font-mono"></span>
+            <span id="video-size"></span>
+          </div>
+        </div>
+
+        <!-- Action Button -->
+        <button id="analyze-btn" disabled class="mt-5 w-full py-3.5 px-4 rounded-xl font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 bg-slate-800 text-slate-500 cursor-not-allowed">
+          <i class="fa-solid fa-microchip"></i>
+          <span>Select a Video to Analyze</span>
+        </button>
+      </div>
+
+      <!-- System Architecture Card -->
+      <div class="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-5 text-xs text-slate-400 space-y-2">
+        <h3 class="font-semibold text-slate-300 flex items-center gap-1.5">
+          <i class="fa-solid fa-circle-info text-cyan-400"></i> Pipeline Pipeline Specs
+        </h3>
+        <p>1. Uniform temporal sampling across video timeline (10 frames)</p>
+        <p>2. Modular Haar Cascade face detector with boundary margin expansion</p>
+        <p>3. VGG16 Convolutional Base with Global Average Pooling & Sigmoid head</p>
+        <p>4. Mean probability aggregation over detected face sequence</p>
+      </div>
+    </div>
+
+    <!-- Results & Metrics Column -->
+    <div class="lg:col-span-6 space-y-6">
+      
+      <!-- Result Card -->
+      <div id="results-card" class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 shadow-xl min-h-[460px] flex flex-col justify-between">
+        <div>
+          <h2 class="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+            <i class="fa-solid fa-chart-pie text-cyan-400"></i> Detection Report
+          </h2>
+          <p class="text-sm text-slate-400 mb-6">Aggregated frame analysis & confidence estimation.</p>
+
+          <!-- Empty State -->
+          <div id="empty-state" class="py-16 text-center text-slate-500 space-y-3">
+            <i class="fa-solid fa-crosshairs text-4xl opacity-40"></i>
+            <p class="text-sm">No analysis performed yet.<br>Upload a video and click Analyze.</p>
+          </div>
+
+          <!-- Loading State -->
+          <div id="loading-state" class="hidden py-16 text-center space-y-4">
+            <div class="w-12 h-12 mx-auto border-4 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
+            <p class="text-sm text-cyan-400 font-medium analyzing">Extracting frames, detecting faces & evaluating VGG16...</p>
+            <p class="text-xs text-slate-500">This typically takes 2-5 seconds.</p>
+          </div>
+
+          <!-- Analysis Content -->
+          <div id="analysis-content" class="hidden space-y-6">
+            
+            <!-- Big Status Pill -->
+            <div id="prediction-banner" class="rounded-xl p-5 border text-center">
+              <span class="text-xs font-bold tracking-widest uppercase block mb-1 opacity-80">VERDICT</span>
+              <span id="prediction-label" class="text-3xl font-extrabold tracking-tight"></span>
+              <p id="prediction-subtext" class="text-xs mt-1"></p>
+            </div>
+
+            <!-- Confidence Bar -->
+            <div class="space-y-2">
+              <div class="flex justify-between text-sm font-medium">
+                <span class="text-slate-300">Confidence Score</span>
+                <span id="confidence-val" class="font-mono font-bold text-cyan-400">0%</span>
+              </div>
+              <div class="w-full bg-slate-800 h-3 rounded-full overflow-hidden">
+                <div id="confidence-bar" class="h-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-700 w-0"></div>
+              </div>
+            </div>
+
+            <!-- Stats Grid -->
+            <div class="grid grid-cols-3 gap-3 pt-2">
+              <div class="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center">
+                <span class="text-[11px] text-slate-400 block">Sampled</span>
+                <span id="stat-sampled" class="text-lg font-bold text-slate-100 font-mono">0</span>
+              </div>
+              <div class="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center">
+                <span class="text-[11px] text-slate-400 block">Valid Faces</span>
+                <span id="stat-valid" class="text-lg font-bold text-emerald-400 font-mono">0</span>
+              </div>
+              <div class="bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 text-center">
+                <span class="text-[11px] text-slate-400 block">Avg Prob</span>
+                <span id="stat-avg-prob" class="text-lg font-bold text-cyan-400 font-mono">0.00</span>
+              </div>
+            </div>
+
+            <!-- Frame Breakdown -->
+            <div id="frame-probabilities-section" class="space-y-2 pt-2">
+              <span class="text-xs text-slate-400 font-medium block">Per-Frame Prediction Probabilities:</span>
+              <div id="frame-badges" class="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1"></div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="pt-4 border-t border-slate-800/60 text-[11px] text-slate-500 flex justify-between">
+          <span>Celeb-DF-v1 Benchmark</span>
+          <span>Zero Frame Leakage</span>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <script>
+    const API_BASE = window.location.origin.includes('8000') ? window.location.origin : 'http://localhost:8000';
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('file-input');
+    const analyzeBtn = document.getElementById('analyze-btn');
+    const previewContainer = document.getElementById('preview-container');
+    const videoPreview = document.getElementById('video-preview');
+    const videoName = document.getElementById('video-name');
+    const videoSize = document.getElementById('video-size');
+    const emptyState = document.getElementById('empty-state');
+    const loadingState = document.getElementById('loading-state');
+    const analysisContent = document.getElementById('analysis-content');
+    const backendStatusPill = document.getElementById('backend-status-pill');
+
+    let currentFile = null;
+
+    // Check backend health
+    async function checkHealth() {
+      try {
+        const res = await fetch(`${API_BASE}/health`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.model_loaded) {
+            backendStatusPill.className = "px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5";
+            backendStatusPill.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-400"></span> API Online (Model Ready)';
+          } else {
+            backendStatusPill.className = "px-3 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1.5";
+            backendStatusPill.innerHTML = '<span class="w-2 h-2 rounded-full bg-amber-400"></span> API Online (Model Missing)';
+          }
+        } else {
+          throw new Error();
+        }
+      } catch (e) {
+        backendStatusPill.className = "px-3 py-1 rounded-full text-xs font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center gap-1.5";
+        backendStatusPill.innerHTML = '<span class="w-2 h-2 rounded-full bg-rose-400"></span> API Offline';
+      }
+    }
+    checkHealth();
+    setInterval(checkHealth, 10000);
+
+    // File Drag & Drop
+    dropzone.addEventListener('click', () => fileInput.click());
+    dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('border-cyan-400'); });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('border-cyan-400'));
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('border-cyan-400');
+      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files.length) handleFile(fileInput.files[0]);
+    });
+
+    function handleFile(file) {
+      if (!file.name.match(/\.(mp4|avi|mov|mkv)$/i)) {
+        alert("Please select a valid video file (.mp4, .avi, .mov, .mkv)");
+        return;
+      }
+      currentFile = file;
+      videoName.textContent = file.name;
+      videoSize.textContent = `${(file.size / (1024 * 1024)).toFixed(2)} MB`;
+      videoPreview.src = URL.createObjectURL(file);
+      previewContainer.classList.remove('hidden');
+
+      analyzeBtn.disabled = false;
+      analyzeBtn.className = "mt-5 w-full py-3.5 px-4 rounded-xl font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white shadow-lg shadow-cyan-500/20 cursor-pointer";
+      analyzeBtn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Analyze Video for DeepFake';
+    }
+
+    analyzeBtn.addEventListener('click', async () => {
+      if (!currentFile) return;
+
+      emptyState.classList.add('hidden');
+      analysisContent.classList.add('hidden');
+      loadingState.classList.remove('hidden');
+      analyzeBtn.disabled = true;
+
+      const formData = new FormData();
+      formData.append('video', currentFile);
+
+      try {
+        const res = await fetch(`${API_BASE}/predict`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || `Server returned ${res.status}`);
+        }
+
+        const data = await res.json();
+        renderResult(data);
+      } catch (err) {
+        alert(`Analysis Error: ${err.message}`);
+        loadingState.classList.add('hidden');
+        emptyState.classList.remove('hidden');
+      } finally {
+        analyzeBtn.disabled = false;
+      }
+    });
+
+    function renderResult(data) {
+      loadingState.classList.add('hidden');
+      analysisContent.classList.remove('hidden');
+
+      const isFake = data.prediction === 'FAKE';
+      const isUncertain = data.prediction === 'UNCERTAIN';
+      const banner = document.getElementById('prediction-banner');
+      const label = document.getElementById('prediction-label');
+      const subtext = document.getElementById('prediction-subtext');
+
+      if (isFake) {
+        banner.className = "rounded-xl p-5 border border-rose-500/40 bg-rose-500/10 text-rose-400 text-center";
+        label.textContent = "SYNTHETIC / DEEPFAKE";
+        subtext.textContent = "Significant facial manipulation artifacts detected.";
+      } else if (isUncertain) {
+        banner.className = "rounded-xl p-5 border border-amber-500/40 bg-amber-500/10 text-amber-400 text-center";
+        label.textContent = "UNCERTAIN";
+        subtext.textContent = "No confident human face could be extracted from sampled frames.";
+      } else {
+        banner.className = "rounded-xl p-5 border border-emerald-500/40 bg-emerald-500/10 text-emerald-400 text-center";
+        label.textContent = "AUTHENTIC / REAL";
+        subtext.textContent = "Natural facial temporal coherence observed.";
+      }
+
+      document.getElementById('confidence-val').textContent = `${data.confidence.toFixed(2)}%`;
+      const bar = document.getElementById('confidence-bar');
+      bar.style.width = `${Math.min(100, Math.max(0, data.confidence))}%`;
+      bar.className = isFake
+        ? "h-full bg-gradient-to-r from-rose-500 to-red-600 transition-all duration-700"
+        : (isUncertain
+            ? "h-full bg-gradient-to-r from-amber-400 to-yellow-500 transition-all duration-700"
+            : "h-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-700");
+
+      document.getElementById('stat-sampled').textContent = data.frames_analyzed;
+      document.getElementById('stat-valid').textContent = data.valid_frames;
+      document.getElementById('stat-avg-prob').textContent = data.average_probability.toFixed(4);
+
+      // Frame pills
+      const badgesContainer = document.getElementById('frame-badges');
+      badgesContainer.innerHTML = '';
+      if (data.frame_probabilities && data.frame_probabilities.length) {
+        data.frame_probabilities.forEach((p, idx) => {
+          const pill = document.createElement('span');
+          const pFake = p >= 0.5;
+          pill.className = `px-2 py-0.5 rounded text-[11px] font-mono border ${
+            pFake ? 'bg-rose-500/10 text-rose-300 border-rose-500/30' : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+          }`;
+          pill.textContent = `F${idx + 1}: ${p.toFixed(2)}`;
+          badgesContainer.appendChild(pill);
+        });
+      }
+    }
+  </script>
+</body>
+</html>

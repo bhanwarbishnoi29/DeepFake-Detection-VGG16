@@ -1,0 +1,57 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Start DeepFake Guardian (FastAPI + Web UI)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "backend.app:app",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8000",
+        "--reload"
+      ],
+      "jinja": true,
+      "justMyCode": true
+    },
+    {
+      "name": "CLI Predict - Fake Video Sample",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/inference/predict.py",
+      "args": [
+        "--video",
+        "${workspaceFolder}/Celeb-DF/Celeb-synthesis/id0_id16_0000.mp4"
+      ],
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "CLI Predict - Real Video Sample",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/inference/predict.py",
+      "args": [
+        "--video",
+        "${workspaceFolder}/Celeb-DF/Celeb-real/id0_0000.mp4"
+      ],
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "Evaluate Benchmark (100 Test Videos)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "src.training.evaluate",
+      "args": [
+        "--config",
+        "config/config.yaml"
+      ],
+      "console": "integratedTerminal",
+      "justMyCode": true
+    }
+  ]
+}

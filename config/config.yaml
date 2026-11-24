@@ -1,0 +1,72 @@
+# Central Configuration for Celeb-DF VGG16 DeepFake Detection System
+
+dataset:
+  raw_dir: "Celeb-DF"
+  processed_dir: "data/processed"
+  splits_dir: "data/splits"
+  official_test_list: "Celeb-DF/List_of_testing_videos.txt"
+  categories:
+    real:
+      - "Celeb-real"
+      - "YouTube-real"
+    fake:
+      - "Celeb-synthesis"
+  # Target split ratios (video-level)
+  train_split: 0.70
+  val_split: 0.15
+  test_split: 0.15
+  random_seed: 42
+
+preprocessing:
+  frames_per_video: 10
+  image_size: [224, 224]
+  channels: 3
+  # Face detection parameters
+  face_detection:
+    method: "haar" # "haar" (OpenCV Haar Cascade) or "dnn"
+    min_face_size: [40, 40]
+    scale_factor: 1.1
+    min_neighbors: 5
+    margin_ratio: 0.15 # expand bbox slightly around face to capture facial contours
+    fallback_center_crop: false # whether to fallback to center crop if no face found
+
+model:
+  name: "VGG16_Transfer"
+  weights: "imagenet"
+  input_shape: [224, 224, 3]
+  dense_units: 256
+  dropout_rate: 0.5
+  learning_rate: 0.0001
+  loss: "binary_crossentropy"
+  metrics:
+    - "accuracy"
+  # Fine tuning parameters
+  fine_tune:
+    enabled: true
+    unfreeze_layers: 4 # Unfreezes block5_conv1, block5_conv2, block5_conv3, etc.
+    learning_rate: 0.00001
+    epochs: 10
+
+training:
+  batch_size: 16
+  epochs: 15
+  random_seed: 42
+  model_dir: "models/trained_model"
+  model_filename: "vgg16_deepfake_detector.keras"
+  early_stopping_patience: 5
+  reduce_lr_patience: 3
+  reduce_lr_factor: 0.5
+  min_lr: 1.0e-6
+
+evaluation:
+  test_batch_size: 16
+  aggregation_method: "mean" # "mean", "median", or "max"
+  threshold: 0.5
+  reports_dir: "outputs/reports"
+  plots_dir: "outputs/plots"
+
+backend:
+  host: "0.0.0.0"
+  port: 8000
+  reload: false
+  max_upload_size_mb: 200
